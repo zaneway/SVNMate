@@ -77,8 +77,6 @@ open SVNMate.xcodeproj
 - [Architecture](docs/architecture.md)
 - [Limitations](docs/limitations.md)
 
-设计演进记录保留在 [docs/superpowers/specs](docs/superpowers/specs)。
-
 ## Repository Layout
 
 ```text
