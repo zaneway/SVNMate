@@ -158,17 +158,22 @@ struct WorkingCopyStatusIndex {
     func status(for path: String, isDirectory: Bool) -> FileStatus {
         if isDirectory {
             if let directoryStatus = directoryStatuses[path] {
-                return directoryStatus
+                return normalizedDirectoryDisplayStatus(directoryStatus)
             }
 
             if let explicitStatus = explicitStatuses[path] {
-                return explicitStatus
+                return normalizedDirectoryDisplayStatus(explicitStatus)
             }
 
             return .normal
         }
 
         return explicitStatuses[path] ?? .normal
+    }
+
+    private func normalizedDirectoryDisplayStatus(_ status: FileStatus) -> FileStatus {
+        // Keep unversioned semantics at the file level only; directories summarize it as a generic change state.
+        status == .unversioned ? .modified : status
     }
 }
 

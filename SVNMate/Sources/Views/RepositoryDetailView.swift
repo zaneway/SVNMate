@@ -438,10 +438,18 @@ struct FileTreeNodeView: View {
                         .cornerRadius(3)
                 }
             }
-            .padding(.leading, CGFloat(depth) * 16)
-            .padding(.vertical, 2)
-            .background(node.status == .conflict ? appTheme.conflictColor.opacity(0.08) : Color.clear)
-            .cornerRadius(6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, CGFloat(depth) * 16 + 6)
+            .padding(.trailing, 6)
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(rowBackgroundColor)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(rowBorderColor, lineWidth: isSelected ? 1 : 0)
+            )
             .contentShape(Rectangle())
             .onTapGesture {
                 handleSelection()
@@ -493,6 +501,26 @@ struct FileTreeNodeView: View {
 
     private var statusColor: Color {
         node.status == .normal ? .clear : appTheme.color(for: node.status)
+    }
+
+    private var isSelected: Bool {
+        selectedFile?.path == node.path
+    }
+
+    private var rowBackgroundColor: Color {
+        if isSelected {
+            return appTheme.accentColor.opacity(0.22)
+        }
+
+        if node.status == .conflict {
+            return appTheme.conflictColor.opacity(0.10)
+        }
+
+        return .clear
+    }
+
+    private var rowBorderColor: Color {
+        isSelected ? appTheme.accentColor.opacity(0.55) : .clear
     }
 }
 
