@@ -10,23 +10,24 @@ private struct CheckoutLogEntry: Identifiable {
 struct CheckoutSheet: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appLocalizer) private var appLocalizer
 
     @State private var repositoryURL = ""
     @State private var localPath = ""
     @State private var isCheckingOut = false
     @State private var errorMessage: String?
     @State private var checkoutLogEntries: [CheckoutLogEntry] = []
-    @State private var currentCheckoutMessage = "Ready to checkout."
+    @State private var currentCheckoutMessage = ""
     @State private var checkedOutItemCount = 0
     @State private var checkoutTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("New Checkout")
+                Text("checkout.title")
                     .font(.headline)
                 Spacer()
-                Button("Cancel") {
+                Button("common.cancel") {
                     dismiss()
                 }
                 .disabled(isCheckingOut)
@@ -37,26 +38,26 @@ struct CheckoutSheet: View {
 
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Repository URL")
+                    Text("checkout.repository_url")
                         .font(.subheadline)
                         .fontWeight(.medium)
 
-                    TextField("svn://example.com/repo", text: $repositoryURL)
+                    TextField("checkout.repository_url.placeholder", text: $repositoryURL)
                         .textFieldStyle(.roundedBorder)
                         .disabled(isCheckingOut)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Local Directory")
+                    Text("checkout.local_directory")
                         .font(.subheadline)
                         .fontWeight(.medium)
 
                     HStack {
-                        TextField("Select folder...", text: $localPath)
+                        TextField("checkout.local_directory.placeholder", text: $localPath)
                             .textFieldStyle(.roundedBorder)
                             .disabled(isCheckingOut)
 
-                        Button("Browse...") {
+                        Button("common.browse") {
                             selectFolder()
                         }
                         .disabled(isCheckingOut)
@@ -87,7 +88,7 @@ struct CheckoutSheet: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .lineLimit(2)
-                        Text("\(checkedOutItemCount) items reported")
+                        Text(appLocalizer.string("checkout.items_reported", checkedOutItemCount))
                             .font(.caption2)
                             .foregroundColor(.secondary)
                     }
@@ -100,7 +101,7 @@ struct CheckoutSheet: View {
                     Spacer()
                 }
 
-                Button("Checkout") {
+                Button("checkout.action") {
                     performCheckout()
                 }
                 .buttonStyle(.borderedProminent)
@@ -110,16 +111,21 @@ struct CheckoutSheet: View {
         }
         .frame(width: 640, height: 480)
         .interactiveDismissDisabled(isCheckingOut)
+        .onAppear {
+            if currentCheckoutMessage.isEmpty {
+                currentCheckoutMessage = appLocalizer.string("checkout.ready")
+            }
+        }
     }
 
     private var progressSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Checkout Progress")
+                Text("checkout.progress.title")
                     .font(.subheadline)
                     .fontWeight(.medium)
                 Spacer()
-                Text("\(checkedOutItemCount) items")
+                Text(appLocalizer.string("checkout.progress.items", checkedOutItemCount))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -165,8 +171,8 @@ struct CheckoutSheet: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.message = "Select a folder to checkout"
-        panel.prompt = "Select"
+        panel.message = appLocalizer.string("checkout.open_panel.message")
+        panel.prompt = appLocalizer.string("checkout.open_panel.prompt")
 
         if panel.runModal() == .OK, let url = panel.url {
             localPath = url.path
@@ -184,7 +190,7 @@ struct CheckoutSheet: View {
         errorMessage = nil
         checkoutLogEntries = []
         checkedOutItemCount = 0
-        currentCheckoutMessage = "Preparing checkout..."
+        currentCheckoutMessage = appLocalizer.string("checkout.preparing")
 
         checkoutTask = Task {
             do {
@@ -200,7 +206,7 @@ struct CheckoutSheet: View {
                 )
 
                 await MainActor.run {
-                    currentCheckoutMessage = "Checkout completed."
+                    currentCheckoutMessage = appLocalizer.string("checkout.completed")
                     isCheckingOut = false
                     checkoutTask = nil
                     dismiss()
@@ -209,7 +215,7 @@ struct CheckoutSheet: View {
             } catch {
                 await MainActor.run {
                     errorMessage = error.localizedDescription
-                    currentCheckoutMessage = "Checkout failed."
+                    currentCheckoutMessage = appLocalizer.string("checkout.failed")
                     isCheckingOut = false
                     checkoutTask = nil
                 }
@@ -256,12 +262,12 @@ struct CheckoutSheet: View {
 
     private func checkoutStatusMessage(from line: String) -> String {
         if let path = currentCheckoutPath(from: line) {
-            return "Checking out: \(path)"
+            return appLocalizer.string("checkout.current_path", path)
         }
 
         if line.localizedCaseInsensitiveContains("checked out revision") ||
             line.localizedCaseInsensitiveContains("at revision") {
-            return "Checkout completed: \(line)"
+            return appLocalizer.string("checkout.completed_line", line)
         }
 
         return line

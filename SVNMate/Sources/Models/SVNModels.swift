@@ -24,15 +24,22 @@ struct SVNTreeConflictVersion: Hashable {
     let reposURL: String
     let revision: String
 
-    var displaySide: String {
+    var displaySideKey: String {
         switch side {
         case "source-left":
-            return "Source Left"
+            return "tree_conflict.side.source_left"
         case "source-right":
-            return "Source Right"
+            return "tree_conflict.side.source_right"
         default:
             return side
         }
+    }
+
+    func localizedDisplaySide(using localizer: AppLocalizer) -> String {
+        if displaySideKey == side {
+            return side
+        }
+        return localizer.string(displaySideKey)
     }
 }
 
@@ -45,61 +52,84 @@ struct SVNTreeConflictDetail: Hashable {
     let sourceLeft: SVNTreeConflictVersion?
     let sourceRight: SVNTreeConflictVersion?
 
-    var summary: String {
-        let localKind = display(kind: kind)
-        let incomingKind = display(kind: sourceRight?.kind ?? kind)
-        return "local \(localKind) \(display(reason: reason)), incoming \(display(action: action)) with \(incomingKind) upon \(display(operation: operation))"
+    func localizedSummary(using localizer: AppLocalizer) -> String {
+        let localKind = localizedKind(using: localizer)
+        let incomingKind = localizer.string(localizationKey(forKind: sourceRight?.kind ?? kind))
+        return localizer.string(
+            "tree_conflict.summary",
+            localKind,
+            localizedReason(using: localizer),
+            localizedAction(using: localizer),
+            incomingKind,
+            localizedOperation(using: localizer)
+        )
     }
 
-    private func display(kind: String) -> String {
+    func localizedKind(using localizer: AppLocalizer) -> String {
+        localizer.string(localizationKey(forKind: kind))
+    }
+
+    func localizedReason(using localizer: AppLocalizer) -> String {
+        localizer.string(localizationKey(forReason: reason))
+    }
+
+    func localizedAction(using localizer: AppLocalizer) -> String {
+        localizer.string(localizationKey(forAction: action))
+    }
+
+    func localizedOperation(using localizer: AppLocalizer) -> String {
+        localizer.string(localizationKey(forOperation: operation))
+    }
+
+    private func localizationKey(forKind kind: String) -> String {
         switch kind.lowercased() {
         case "dir":
-            return "dir"
+            return "tree_conflict.kind.dir"
         case "file":
-            return "file"
+            return "tree_conflict.kind.file"
         default:
             return kind.lowercased()
         }
     }
 
-    private func display(reason: String) -> String {
+    private func localizationKey(forReason reason: String) -> String {
         switch reason.lowercased() {
         case "edit":
-            return "edit"
+            return "tree_conflict.reason.edit"
         case "delete":
-            return "delete"
+            return "tree_conflict.reason.delete"
         case "missing":
-            return "missing"
+            return "tree_conflict.reason.missing"
         case "obstruct":
-            return "obstruct"
+            return "tree_conflict.reason.obstruct"
         default:
             return reason.lowercased()
         }
     }
 
-    private func display(action: String) -> String {
+    private func localizationKey(forAction action: String) -> String {
         switch action.lowercased() {
         case "add":
-            return "add"
+            return "tree_conflict.action.add"
         case "delete":
-            return "delete"
+            return "tree_conflict.action.delete"
         case "edit":
-            return "edit"
+            return "tree_conflict.action.edit"
         case "replace":
-            return "replace"
+            return "tree_conflict.action.replace"
         default:
             return action.lowercased()
         }
     }
 
-    private func display(operation: String) -> String {
+    private func localizationKey(forOperation operation: String) -> String {
         switch operation.lowercased() {
         case "update":
-            return "update"
+            return "tree_conflict.operation.update"
         case "switch":
-            return "switch"
+            return "tree_conflict.operation.switch"
         case "merge":
-            return "merge"
+            return "tree_conflict.operation.merge"
         default:
             return operation.lowercased()
         }
@@ -235,8 +265,41 @@ enum FileStatus: String, Codable, CaseIterable {
         }
     }
 
+    var localizationKey: String {
+        switch self {
+        case .normal:
+            return "status.normal"
+        case .modified:
+            return "status.modified"
+        case .added:
+            return "status.added"
+        case .deleted:
+            return "status.deleted"
+        case .unversioned:
+            return "status.unversioned"
+        case .conflict:
+            return "status.conflict"
+        case .ignored:
+            return "status.ignored"
+        case .missing:
+            return "status.missing"
+        case .replaced:
+            return "status.replaced"
+        case .external:
+            return "status.external"
+        }
+    }
+
     var badgeText: String? {
         self == .normal ? nil : displayName.uppercased()
+    }
+
+    func localizedDisplayName(using localizer: AppLocalizer) -> String {
+        localizer.string(localizationKey)
+    }
+
+    func localizedBadgeText(using localizer: AppLocalizer) -> String? {
+        self == .normal ? nil : localizer.uppercased(localizationKey)
     }
 
     var isCommittable: Bool {
@@ -309,10 +372,11 @@ struct SVNError: LocalizedError {
     }
 
     var errorDescription: String? {
+        let localizer = AppLocalizer.current()
         var parts = [message]
 
         if let command, !command.isEmpty {
-            parts.append("Command: \(command)")
+            parts.append(localizer.string("error.command_prefix", command))
         }
 
         if let output, !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

@@ -115,6 +115,7 @@ actor SVNCommandRunner {
                     do {
                         try process.run()
                     } catch {
+                        let localizer = AppLocalizer.current()
                         collector.detach(
                             stdout: stdoutPipe.fileHandleForReading,
                             stderr: stderrPipe.fileHandleForReading
@@ -122,7 +123,7 @@ actor SVNCommandRunner {
                         state.finish(
                             with: .failure(
                                 SVNError(
-                                    message: "Failed to launch svn command.",
+                                    message: localizer.string("error.svn.launch_failed"),
                                     command: command,
                                     output: error.localizedDescription
                                 )
@@ -134,11 +135,12 @@ actor SVNCommandRunner {
                     let timeoutTimer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .userInitiated))
                     timeoutTimer.schedule(deadline: .now() + effectiveTimeout)
                     timeoutTimer.setEventHandler {
+                        let localizer = AppLocalizer.current()
                         state.terminate()
                         state.finish(
                             with: .failure(
                                 SVNError(
-                                    message: "SVN command timed out after \(Int(effectiveTimeout)) seconds.",
+                                    message: localizer.string("error.svn.timeout", Int(effectiveTimeout)),
                                     command: command
                                 )
                             )
@@ -169,11 +171,12 @@ actor SVNCommandRunner {
                     )
 
                     guard result.exitCode == 0 else {
+                        let localizer = AppLocalizer.current()
                         let errorOutput = result.stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? result.stdout : result.stderr
                         state.finish(
                             with: .failure(
                                 SVNError(
-                                    message: "SVN command failed.",
+                                    message: localizer.string("error.svn.command_failed"),
                                     command: result.commandDescription,
                                     output: errorOutput
                                 )
@@ -186,11 +189,12 @@ actor SVNCommandRunner {
                 }
             }
         } onCancel: {
+            let localizer = AppLocalizer.current()
             state.terminate()
             state.finish(
                 with: .failure(
                     SVNError(
-                        message: "SVN command was cancelled.",
+                        message: localizer.string("error.svn.cancelled"),
                         command: command
                     )
                 )

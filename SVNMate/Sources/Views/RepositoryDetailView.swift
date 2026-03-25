@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 
 struct RepositoryDetailView: View {
+    @Environment(\.appLocalizer) private var appLocalizer
     let repository: Repository
     @StateObject private var viewModel: RepositoryViewModel
     @State private var selectedFile: FileNode?
@@ -66,7 +67,7 @@ struct RepositoryDetailView: View {
                             }
 
                             let message = commitMessage.trimmingCharacters(in: .whitespacesAndNewlines)
-                        viewModel.commit(message: message, files: commitTargets) {
+                            viewModel.commit(message: message, files: commitTargets) {
                                 commitMessage = ""
                                 selectedFiles.removeAll()
                                 pendingSelectionAfterReload.removeAll()
@@ -105,7 +106,7 @@ struct RepositoryDetailView: View {
                         Image(systemName: "doc.text")
                             .font(.system(size: 48))
                         .foregroundColor(.secondary)
-                        Text("Select a file to view details")
+                        Text("repo.select_file_hint")
                             .font(.headline)
                             .foregroundColor(.secondary)
                     }
@@ -113,11 +114,11 @@ struct RepositoryDetailView: View {
                 }
             }
         }
-        .alert("Repository Error", isPresented: .init(
+        .alert("alert.repository_error.title", isPresented: .init(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.clearError() } }
         )) {
-            Button("OK") {
+            Button("common.ok") {
                 viewModel.clearError()
             }
         } message: {
@@ -179,7 +180,7 @@ struct RepositoryDetailView: View {
 
         let preview = commitBlockedPaths.prefix(3).joined(separator: ", ")
         let suffix = commitBlockedPaths.count > 3 ? " ..." : ""
-        return "Resolve conflict before commit: \(preview)\(suffix)"
+        return appLocalizer.string("repo.commit_blocked.reason", preview, suffix)
     }
 
     private var primaryTreeConflictPath: String? {
@@ -263,14 +264,14 @@ struct RepositoryToolbar: View {
                 Button {
                     viewModel.update()
                 } label: {
-                    Label("Update", systemImage: "arrow.down.circle")
+                    Label("common.update", systemImage: "arrow.down.circle")
                 }
                 .disabled(viewModel.isLoading)
                 
                 Button {
                     viewModel.cleanup()
                 } label: {
-                    Label("Cleanup", systemImage: "wand.and.stars")
+                    Label("common.cleanup", systemImage: "wand.and.stars")
                 }
                 .disabled(viewModel.isLoading)
 
@@ -296,6 +297,8 @@ struct RepositoryToolbar: View {
 // MARK: - File Tree
 
 struct FileTreeView: View {
+    @Environment(\.appTheme) private var appTheme
+    @Environment(\.appLocalizer) private var appLocalizer
     let nodes: [FileNode]
     let isLoading: Bool
     let issueCount: Int
@@ -308,16 +311,16 @@ struct FileTreeView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("Files")
+                Text("repo.files")
                     .font(.subheadline)
                     .fontWeight(.medium)
                 Spacer()
                 if issueCount > 0 {
-                    Text("\(issueCount) issues")
+                    Text(appLocalizer.string("repo.issue_count", issueCount))
                         .font(.caption)
-                        .foregroundColor(.orange)
+                        .foregroundColor(appTheme.issueColor)
                 }
-                Text("\(countFiles(nodes)) loaded")
+                Text(appLocalizer.string("repo.loaded_count", countFiles(nodes)))
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -329,7 +332,7 @@ struct FileTreeView: View {
             if isLoading {
                 VStack(spacing: 8) {
                     ProgressView()
-                    Text("Loading...")
+                    Text("common.loading")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -339,7 +342,7 @@ struct FileTreeView: View {
                     Image(systemName: "folder")
                         .font(.system(size: 28))
                         .foregroundColor(.secondary)
-                    Text("Repository directory is empty")
+                    Text("repo.empty_directory")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -374,6 +377,8 @@ struct FileTreeView: View {
 }
 
 struct FileTreeNodeView: View {
+    @Environment(\.appTheme) private var appTheme
+    @Environment(\.appLocalizer) private var appLocalizer
     let node: FileNode
     @Binding var selectedFile: FileNode?
     @Binding var selectedFiles: Set<String>
@@ -405,7 +410,7 @@ struct FileTreeNodeView: View {
                         toggleSelection()
                     } label: {
                         Image(systemName: selectedFiles.contains(node.path) ? "checkmark.square.fill" : "square")
-                            .foregroundColor(selectedFiles.contains(node.path) ? .accentColor : .secondary)
+                            .foregroundColor(selectedFiles.contains(node.path) ? appTheme.accentColor : .secondary)
                     }
                     .buttonStyle(.plain)
                 } else {
@@ -423,7 +428,7 @@ struct FileTreeNodeView: View {
                 
                 Spacer()
                 
-                if let statusText = node.status.badgeText {
+                if let statusText = node.status.localizedBadgeText(using: appLocalizer) {
                     Text(statusText)
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(statusColor)
@@ -435,11 +440,14 @@ struct FileTreeNodeView: View {
             }
             .padding(.leading, CGFloat(depth) * 16)
             .padding(.vertical, 2)
-            .background(node.status == .conflict ? Color.red.opacity(0.08) : Color.clear)
+            .background(node.status == .conflict ? appTheme.conflictColor.opacity(0.08) : Color.clear)
             .cornerRadius(6)
             .contentShape(Rectangle())
             .onTapGesture {
-                selectedFile = node
+                handleSelection()
+            }
+            .onTapGesture(count: 2) {
+                handleDirectoryDoubleClick()
             }
             
             if node.isDirectory && isExpanded {
@@ -465,41 +473,34 @@ struct FileTreeNodeView: View {
             selectedFiles.insert(node.path)
         }
     }
+
+    private func handleSelection() {
+        selectedFile = node
+    }
+
+    private func handleDirectoryDoubleClick() {
+        guard node.isDirectory else {
+            return
+        }
+
+        selectedFile = node
+        onSetExpanded(node, !isExpanded)
+    }
     
     private var iconColor: Color {
-        switch node.status {
-        case .modified: return .orange
-        case .added: return .green
-        case .deleted: return .red
-        case .unversioned: return .secondary
-        case .conflict: return .red
-        case .missing: return .red
-        case .replaced: return .orange
-        case .external: return .blue
-        case .normal: return .primary
-        case .ignored: return .gray
-        }
+        appTheme.color(for: node.status)
     }
 
     private var statusColor: Color {
-        switch node.status {
-        case .modified: return .orange
-        case .added: return .green
-        case .deleted: return .red
-        case .unversioned: return .secondary
-        case .conflict: return .red
-        case .missing: return .red
-        case .replaced: return .orange
-        case .external: return .blue
-        case .normal: return .clear
-        case .ignored: return .gray
-        }
+        node.status == .normal ? .clear : appTheme.color(for: node.status)
     }
 }
 
 // MARK: - File Detail
 
 struct FileDetailView: View {
+    @Environment(\.appTheme) private var appTheme
+    @Environment(\.appLocalizer) private var appLocalizer
     let file: FileNode
     @ObservedObject var viewModel: RepositoryViewModel
     let issues: [WorkingCopyIssue]
@@ -514,7 +515,7 @@ struct FileDetailView: View {
             HStack {
                 Image(systemName: file.icon)
                     .font(.title2)
-                    .foregroundColor(.blue)
+                    .foregroundColor(appTheme.accentColor)
                 
                 VStack(alignment: .leading) {
                     Text(file.name)
@@ -534,10 +535,10 @@ struct FileDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     // File Info
-                    InfoRow(label: "Status", value: file.status.displayName)
+                    InfoRow(label: appLocalizer.string("common.status"), value: file.status.localizedDisplayName(using: appLocalizer))
                     
                     if !file.isDirectory && file.status.isAddable {
-                        Button("Add to SVN") {
+                        Button("repo.add_to_svn") {
                             onAdd()
                         }
                         .buttonStyle(.borderedProminent)
@@ -545,7 +546,7 @@ struct FileDetailView: View {
 
                     if !file.isDirectory {
                         HStack {
-                            Button("View Diff") {
+                            Button("repo.view_diff") {
                                 viewModel.showDiff(for: file)
                             }
                             .buttonStyle(.bordered)
@@ -553,7 +554,7 @@ struct FileDetailView: View {
                     }
 
                     if file.status == .conflict {
-                        Button(file.isDirectory ? "Resolve Conflict" : "Resolve") {
+                        Button(file.isDirectory ? "repo.resolve_conflict" : "repo.resolve") {
                             onResolve()
                         }
                         .buttonStyle(.borderedProminent)
@@ -583,6 +584,8 @@ struct FileDetailView: View {
 }
 
 struct SelectionActionPanel: View {
+    @Environment(\.appTheme) private var appTheme
+    @Environment(\.appLocalizer) private var appLocalizer
     let selectedNodes: [FileNode]
     let selectedFile: FileNode?
     @Binding var commitMessage: String
@@ -603,16 +606,16 @@ struct SelectionActionPanel: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Selection Actions")
+                    Text("repo.selection.actions")
                         .font(.headline)
-                    Text("\(selectedNodes.count) item(s) selected")
+                    Text(appLocalizer.string("repo.selection.count", selectedNodes.count))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
 
                 Spacer()
 
-                Button("Clear Selection") {
+                Button("repo.clear_selection") {
                     onClearSelection()
                 }
                 .disabled(isLoading)
@@ -630,7 +633,7 @@ struct SelectionActionPanel: View {
                     )
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Commit Message")
+                        Text("repo.commit_message")
                             .font(.subheadline)
                             .fontWeight(.medium)
 
@@ -646,13 +649,13 @@ struct SelectionActionPanel: View {
                     }
 
                     HStack(spacing: 10) {
-                        Button("Add to SVN") {
+                        Button("repo.add_to_svn") {
                             onAdd()
                         }
                         .buttonStyle(.bordered)
                         .disabled(addableNodes.isEmpty || isLoading)
 
-                        Button("Commit Selected") {
+                        Button("repo.commit_selected") {
                             onCommit()
                         }
                         .buttonStyle(.borderedProminent)
@@ -664,7 +667,7 @@ struct SelectionActionPanel: View {
                         )
 
                         if canShowDiff {
-                            Button("View Diff") {
+                            Button("repo.view_diff") {
                                 onShowDiff()
                             }
                             .buttonStyle(.bordered)
@@ -672,7 +675,7 @@ struct SelectionActionPanel: View {
                         }
 
                         if canResolveConflict {
-                            Button("Resolve") {
+                            Button("repo.resolve") {
                                 onResolve()
                             }
                             .buttonStyle(.bordered)
@@ -681,7 +684,7 @@ struct SelectionActionPanel: View {
                     }
 
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("Selected Items")
+                        Text("repo.selected_items")
                             .font(.subheadline)
                             .fontWeight(.medium)
 
@@ -693,7 +696,7 @@ struct SelectionActionPanel: View {
                     }
 
                     if !addableNodes.isEmpty && committableNodes.isEmpty {
-                        Text("These items are not versioned yet. Run Add to SVN first, then commit them with the message above.")
+                        Text("repo.add_first_hint")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
@@ -701,7 +704,7 @@ struct SelectionActionPanel: View {
                     if let commitBlockedReason {
                         Text(commitBlockedReason)
                             .font(.caption)
-                            .foregroundColor(.red)
+                            .foregroundColor(appTheme.conflictColor)
                     }
 
                     if commitBlockedReason != nil || treeConflictDetail != nil || isLoadingTreeConflictDetail {
@@ -836,15 +839,17 @@ struct CommitMessageEditor: NSViewRepresentable {
 }
 
 struct SelectionSummaryView: View {
+    @Environment(\.appTheme) private var appTheme
+    @Environment(\.appLocalizer) private var appLocalizer
     let addableCount: Int
     let committableCount: Int
     let blockedCount: Int
 
     var body: some View {
         HStack(spacing: 12) {
-            SummaryBadge(title: "Addable", count: addableCount, color: .blue)
-            SummaryBadge(title: "Committable", count: committableCount, color: .green)
-            SummaryBadge(title: "Other", count: blockedCount, color: .secondary)
+            SummaryBadge(title: appLocalizer.string("repo.summary.addable"), count: addableCount, color: appTheme.color(for: .unversioned))
+            SummaryBadge(title: appLocalizer.string("repo.summary.committable"), count: committableCount, color: appTheme.color(for: .added))
+            SummaryBadge(title: appLocalizer.string("repo.summary.other"), count: blockedCount, color: .secondary)
         }
     }
 }
@@ -872,6 +877,8 @@ struct SummaryBadge: View {
 }
 
 struct SelectionItemRow: View {
+    @Environment(\.appTheme) private var appTheme
+    @Environment(\.appLocalizer) private var appLocalizer
     let node: FileNode
     let isFocused: Bool
 
@@ -892,7 +899,7 @@ struct SelectionItemRow: View {
 
             Spacer()
 
-            Text(node.status.displayName.uppercased())
+            Text(node.status.localizedBadgeText(using: appLocalizer) ?? "")
                 .font(.system(size: 10, weight: .medium))
                 .foregroundColor(iconColor)
                 .padding(.horizontal, 6)
@@ -901,35 +908,24 @@ struct SelectionItemRow: View {
                 .cornerRadius(4)
         }
         .padding(10)
-        .background(isFocused ? Color.accentColor.opacity(0.08) : Color(NSColor.controlBackgroundColor))
+        .background(isFocused ? appTheme.accentColor.opacity(0.08) : Color(NSColor.controlBackgroundColor))
         .cornerRadius(8)
     }
 
     private var iconColor: Color {
-        switch node.status {
-        case .modified, .replaced:
-            return .orange
-        case .added:
-            return .green
-        case .deleted, .conflict, .missing:
-            return .red
-        case .unversioned:
-            return .blue
-        case .external:
-            return .indigo
-        case .ignored, .normal:
-            return .secondary
-        }
+        appTheme.color(for: node.status)
     }
 }
 
 struct TreeConflictDetailSection: View {
+    @Environment(\.appTheme) private var appTheme
+    @Environment(\.appLocalizer) private var appLocalizer
     let detail: SVNTreeConflictDetail?
     let isLoading: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Tree Conflict")
+            Text("tree_conflict.title")
                 .font(.subheadline)
                 .fontWeight(.medium)
 
@@ -937,23 +933,23 @@ struct TreeConflictDetailSection: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("Loading conflict detail...")
+                    Text("tree_conflict.loading")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             } else if let detail {
-                Text(detail.summary)
+                Text(detail.localizedSummary(using: appLocalizer))
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.red)
+                    .foregroundColor(appTheme.conflictColor)
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.red.opacity(0.08))
+                    .background(appTheme.conflictColor.opacity(0.08))
                     .cornerRadius(8)
 
-                InfoRow(label: "Victim", value: detail.victim)
-                InfoRow(label: "Reason", value: detail.reason)
-                InfoRow(label: "Action", value: detail.action)
-                InfoRow(label: "Operation", value: detail.operation)
+                InfoRow(label: appLocalizer.string("common.victim"), value: detail.victim)
+                InfoRow(label: appLocalizer.string("common.reason"), value: detail.localizedReason(using: appLocalizer))
+                InfoRow(label: appLocalizer.string("common.action"), value: detail.localizedAction(using: appLocalizer))
+                InfoRow(label: appLocalizer.string("common.operation"), value: detail.localizedOperation(using: appLocalizer))
 
                 if let sourceLeft = detail.sourceLeft {
                     TreeConflictVersionBlock(version: sourceLeft)
@@ -963,7 +959,7 @@ struct TreeConflictDetailSection: View {
                     TreeConflictVersionBlock(version: sourceRight)
                 }
             } else {
-                Text("Conflict detail unavailable.")
+                Text("tree_conflict.unavailable")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
@@ -972,20 +968,21 @@ struct TreeConflictDetailSection: View {
 }
 
 struct TreeConflictVersionBlock: View {
+    @Environment(\.appLocalizer) private var appLocalizer
     let version: SVNTreeConflictVersion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(version.displaySide)
+            Text(version.localizedDisplaySide(using: appLocalizer))
                 .font(.caption)
                 .foregroundColor(.secondary)
 
             VStack(alignment: .leading, spacing: 4) {
-                InfoRow(label: "Kind", value: version.kind)
-                InfoRow(label: "Revision", value: version.revision)
+                InfoRow(label: appLocalizer.string("common.kind"), value: localizedKind(version.kind))
+                InfoRow(label: appLocalizer.string("common.revision"), value: version.revision)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Path In Repos")
+                    Text("common.path_in_repos")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Text(version.pathInRepos)
@@ -995,7 +992,7 @@ struct TreeConflictVersionBlock: View {
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Repository URL")
+                    Text("common.repository_url")
                         .font(.caption)
                         .foregroundColor(.secondary)
                     Text(version.reposURL)
@@ -1009,18 +1006,30 @@ struct TreeConflictVersionBlock: View {
             .cornerRadius(8)
         }
     }
+
+    private func localizedKind(_ kind: String) -> String {
+        switch kind.lowercased() {
+        case "dir":
+            return appLocalizer.string("tree_conflict.kind.dir")
+        case "file":
+            return appLocalizer.string("tree_conflict.kind.file")
+        default:
+            return kind
+        }
+    }
 }
 
 struct IssueOverviewView: View {
+    @Environment(\.appLocalizer) private var appLocalizer
     let issues: [WorkingCopyIssue]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("SVN Issues")
+                    Text("repo.svn_issues")
                         .font(.headline)
-                    Text("\(issues.count) issue(s) need attention")
+                    Text(appLocalizer.string("repo.issues_need_attention", issues.count))
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -1044,7 +1053,7 @@ struct SVNIssuesSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("SVN Issues")
+            Text("repo.svn_issues")
                 .font(.subheadline)
                 .fontWeight(.medium)
 
@@ -1058,12 +1067,14 @@ struct SVNIssuesSection: View {
 }
 
 struct SVNIssueRow: View {
+    @Environment(\.appTheme) private var appTheme
+    @Environment(\.appLocalizer) private var appLocalizer
     let issue: WorkingCopyIssue
 
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: issueIcon)
-                .foregroundColor(.orange)
+                .foregroundColor(issueColor)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 2) {
@@ -1076,12 +1087,12 @@ struct SVNIssueRow: View {
 
             Spacer()
 
-            Text(issue.status.displayName.uppercased())
+            Text(issue.status.localizedBadgeText(using: appLocalizer) ?? "")
                 .font(.system(size: 10, weight: .medium))
-                .foregroundColor(.orange)
+                .foregroundColor(issueColor)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background(Color.orange.opacity(0.15))
+                .background(issueColor.opacity(0.15))
                 .cornerRadius(4)
         }
         .padding(10)
@@ -1091,10 +1102,10 @@ struct SVNIssueRow: View {
 
     private var issueDescription: String {
         if issue.existsOnDisk {
-            return "SVN reported an issue for this path."
+            return appLocalizer.string("repo.issue_exists_on_disk")
         }
 
-        return "The path is tracked by SVN but is missing from disk."
+        return appLocalizer.string("repo.issue_missing_on_disk")
     }
 
     private var issueIcon: String {
@@ -1106,6 +1117,10 @@ struct SVNIssueRow: View {
         default:
             return "exclamationmark.circle.fill"
         }
+    }
+
+    private var issueColor: Color {
+        appTheme.color(for: issue.status)
     }
 }
 
@@ -1130,7 +1145,7 @@ struct DiffView: View {
     
     var body: some View {
         VStack(alignment: .leading) {
-            Text("Diff")
+            Text("common.diff")
                 .font(.subheadline)
                 .fontWeight(.medium)
                 .padding(.horizontal)

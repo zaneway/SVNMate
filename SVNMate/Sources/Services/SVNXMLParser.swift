@@ -2,11 +2,12 @@ import Foundation
 
 final class SVNXMLParser {
     func parseInfo(_ output: String) throws -> SVNInfo {
+        let localizer = AppLocalizer.current()
         let document = try xmlDocument(from: output)
 
         guard let root = document.rootElement(),
               let entry = root.elements(forName: "entry").first else {
-            throw SVNError(message: "Unable to parse svn info output.")
+            throw SVNError(message: localizer.string("error.svn.parse_info"))
         }
 
         let url = entry.elements(forName: "url").first?.stringValue ?? ""
@@ -52,9 +53,10 @@ final class SVNXMLParser {
     }
 
     func parseStatus(_ output: String, basePath: String) throws -> WorkingCopyStatusIndex {
+        let localizer = AppLocalizer.current()
         let document = try xmlDocument(from: output)
         guard let root = document.rootElement() else {
-            throw SVNError(message: "Unable to parse svn status output.")
+            throw SVNError(message: localizer.string("error.svn.parse_status"))
         }
 
         var explicitStatuses: [String: FileStatus] = [:]
@@ -118,8 +120,9 @@ final class SVNXMLParser {
     }
 
     private func xmlDocument(from output: String) throws -> XMLDocument {
+        let localizer = AppLocalizer.current()
         guard let data = output.data(using: .utf8) else {
-            throw SVNError(message: "SVN output is not valid UTF-8.")
+            throw SVNError(message: localizer.string("error.svn.utf8"))
         }
 
         return try XMLDocument(data: data, options: [])

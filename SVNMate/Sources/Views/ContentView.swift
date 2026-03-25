@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
+    @EnvironmentObject var menuBarController: MenuBarController
     
     var body: some View {
         NavigationSplitView {
@@ -17,11 +18,11 @@ struct ContentView: View {
         .sheet(isPresented: $appState.showCheckoutSheet) {
             CheckoutSheet()
         }
-        .alert("Error", isPresented: .init(
+        .alert("alert.error.title", isPresented: .init(
             get: { appState.errorMessage != nil },
             set: { if !$0 { appState.clearMessages() } }
         )) {
-            Button("OK") { appState.clearMessages() }
+            Button("common.ok") { appState.clearMessages() }
         } message: {
             Text(appState.errorMessage ?? "")
         }
@@ -32,6 +33,12 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: appState.successMessage)
+        .onAppear {
+            menuBarController.refresh(for: appState.selectedRepository)
+        }
+        .onChange(of: appState.selectedRepository?.path) { _ in
+            menuBarController.refresh(for: appState.selectedRepository)
+        }
     }
 }
 
@@ -44,15 +51,20 @@ struct SidebarView: View {
         VStack(spacing: 0) {
             // Header
             HStack {
-                Text("Repositories")
+                Text("sidebar.repositories")
                     .font(.headline)
                 Spacer()
                 Menu {
-                    Button("New Checkout...") {
+                    Button("menu.new_checkout") {
                         appState.showCheckoutSheet = true
                     }
-                    Button("Open Repository...") {
+                    Button("menu.open_repository") {
                         appState.openRepository()
+                    }
+                    Button {
+                        openSettingsWindow()
+                    } label: {
+                        Label("menu.settings", systemImage: "gearshape")
                     }
                 } label: {
                     Image(systemName: "plus")
@@ -71,10 +83,10 @@ struct SidebarView: View {
                     Image(systemName: "tray")
                         .font(.system(size: 40))
                         .foregroundColor(.secondary)
-                    Text("No repositories")
+                    Text("sidebar.no_repositories")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-                    Button("Add Repository") {
+                    Button("sidebar.add_repository") {
                         appState.openRepository()
                     }
                     .buttonStyle(.bordered)
@@ -86,7 +98,7 @@ struct SidebarView: View {
                         RepositoryRow(repository: repo)
                             .tag(repo)
                             .contextMenu {
-                                Button("Remove") {
+                                Button("common.remove") {
                                     appState.removeRepository(repo)
                                 }
                             }
@@ -100,11 +112,12 @@ struct SidebarView: View {
 
 struct RepositoryRow: View {
     let repository: Repository
+    @Environment(\.appTheme) private var appTheme
     
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "folder.fill")
-                .foregroundColor(.blue)
+                .foregroundColor(appTheme.accentColor)
                 .font(.system(size: 16))
             
             VStack(alignment: .leading, spacing: 2) {
@@ -128,18 +141,19 @@ struct RepositoryRow: View {
 
 struct WelcomeView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.appTheme) private var appTheme
     
     var body: some View {
         VStack(spacing: 24) {
             Image(systemName: "shippingbox")
                 .font(.system(size: 64))
-                .foregroundColor(.secondary)
+                .foregroundColor(appTheme.accentColor)
             
-            Text("Welcome to SVNMate")
+            Text("welcome.title")
                 .font(.largeTitle)
                 .fontWeight(.semibold)
             
-            Text("A native macOS SVN client")
+            Text("welcome.subtitle")
                 .font(.title3)
                 .foregroundColor(.secondary)
             
@@ -147,14 +161,14 @@ struct WelcomeView: View {
                 Button {
                     appState.showCheckoutSheet = true
                 } label: {
-                    Label("New Checkout", systemImage: "arrow.down.circle")
+                    Label("welcome.new_checkout", systemImage: "arrow.down.circle")
                 }
                 .buttonStyle(.borderedProminent)
                 
                 Button {
                     appState.openRepository()
                 } label: {
-                    Label("Open Repository", systemImage: "folder")
+                    Label("welcome.open_repository", systemImage: "folder")
                 }
                 .buttonStyle(.bordered)
             }

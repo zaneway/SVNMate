@@ -26,12 +26,13 @@ final class AppState: ObservableObject {
     }
     
     func openRepository() {
+        let localizer = AppLocalizer.current()
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.message = "Select a SVN repository folder"
-        panel.prompt = "Open"
+        panel.message = localizer.string("open_repository.panel.message")
+        panel.prompt = localizer.string("open_repository.panel.prompt")
         
         if panel.runModal() == .OK, let url = panel.url {
             addRepository(at: url.path)
@@ -39,6 +40,7 @@ final class AppState: ObservableObject {
     }
     
     func addRepository(at path: String) {
+        let localizer = AppLocalizer.current()
         isLoading = true
         
         Task {
@@ -59,9 +61,9 @@ final class AppState: ObservableObject {
                 repositoryStore.saveRepositories(repositories)
                 selectedRepository = repo
                 isLoading = false
-                showSuccessMessage("Repository added successfully")
+                showSuccessMessage(localizer.string("success.repository_added"))
             } catch {
-                errorMessage = "Failed to add repository: \(error.localizedDescription)"
+                errorMessage = localizer.string("error.repository.add_failed", error.localizedDescription)
                 isLoading = false
             }
         }
