@@ -101,4 +101,8 @@ SVNMate 当前已经具备可用的工作副本操作主链路，但仍处于持
 
 ## License
 
-本仓库使用 [LICENSE](LICENSE) 中定义的许可协议。
+本仓库采用 [GNU General Public License v3.0](LICENSE) 发布。
+
+- SPDX: `GPL-3.0-only`
+- 你可以在 GPL-3.0 条款下使用、修改和分发本项目
+- 如果你分发修改版或衍生作品，需要继续遵守 GPL-3.0 的 copyleft 要求
