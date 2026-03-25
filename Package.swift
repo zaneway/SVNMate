@@ -18,8 +18,11 @@ let package = Package(
             dependencies: [],
             path: "SVNMate/Sources",
             exclude: [
+                "Assets.xcassets",
                 "Info.plist",
-                "SVNMate.entitlements"
+                "SVNMate.entitlements",
+                "en.lproj",
+                "zh-Hans.lproj"
             ]
         )
     ]
